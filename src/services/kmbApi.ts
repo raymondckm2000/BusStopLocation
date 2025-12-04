@@ -41,10 +41,13 @@ export interface RouteInfo {
   dest_en: string;
 }
 
+// Fetch all routes and filter by route number
 export async function getRouteInfo(route: string): Promise<RouteInfo[]> {
-  const response = await fetch(`${BASE_URL}/route/${route}`);
+  const response = await fetch(`${BASE_URL}/route/`);
   const data = await response.json();
-  return data.data || [];
+  const allRoutes: RouteInfo[] = data.data || [];
+  // Filter routes matching the input (case insensitive)
+  return allRoutes.filter((r) => r.route.toUpperCase() === route.toUpperCase());
 }
 
 export async function getRouteStops(route: string, direction: string, serviceType: string): Promise<RouteStop[]> {
