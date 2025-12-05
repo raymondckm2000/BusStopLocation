@@ -259,31 +259,38 @@ export default function Index() {
   ) => {
     if (!userLocation) return;
 
-    let nearestStop: { stopId: string; direction: 'outbound' | 'inbound' } | null = null;
-    let shortestDistance = Number.POSITIVE_INFINITY;
+    const hasOutboundStops = outboundStopsData.length > 0;
+    const preferredStops = hasOutboundStops ? outboundStopsData : inboundStopsData;
+    const preferredDirection: 'outbound' | 'inbound' = hasOutboundStops ? 'outbound' : 'inbound';
 
-    const evaluateStops = (stops: StopWithInfo[], direction: 'outbound' | 'inbound') => {
-      stops.forEach((stop) => {
-        const distance = haversineDistance(
-          userLocation.latitude,
-          userLocation.longitude,
-          stop.latitude,
-          stop.longitude
-        );
-        if (distance < shortestDistance) {
-          shortestDistance = distance;
-          nearestStop = { stopId: stop.stop, direction };
-        }
-      });
-    };
+    if (preferredStops.length === 0) return;
 
-    evaluateStops(outboundStopsData, 'outbound');
-    evaluateStops(inboundStopsData, 'inbound');
+    let nearestStopId = preferredStops[0].stop;
+    let shortestDistance = haversineDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      preferredStops[0].latitude,
+      preferredStops[0].longitude
+    );
 
-    if (nearestStop) {
-      setActiveTab(nearestStop.direction);
-      void handleSelectStop(nearestStop.stopId, nearestStop.direction);
+    preferredStops.slice(1).forEach((stop) => {
+      const distance = haversineDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        stop.latitude,
+        stop.longitude
+      );
+      if (distance < shortestDistance) {
+        shortestDistance = distance;
+        nearestStopId = stop.stop;
+      }
+    });
+
+    if (preferredDirection !== activeTab) {
+      setActiveTab(preferredDirection);
     }
+
+    void handleSelectStop(nearestStopId, preferredDirection);
   };
 
   useEffect(() => {
