@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { BusSearch } from '@/components/BusSearch';
 import { StopList } from '@/components/StopList';
-import { ETADisplay } from '@/components/ETADisplay';
 import { useToast } from '@/hooks/use-toast';
 import {
   getAllStops,
@@ -50,7 +49,6 @@ export default function Index() {
   const [outboundStops, setOutboundStops] = useState<StopWithInfo[]>([]);
   const [inboundStops, setInboundStops] = useState<StopWithInfo[]>([]);
   const [selectedStop, setSelectedStop] = useState<string | null>(null);
-  const [selectedStopName, setSelectedStopName] = useState('');
   const [eta, setEta] = useState<ETA[]>([]);
   const [etaLoading, setEtaLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('outbound');
@@ -220,6 +218,12 @@ export default function Index() {
   };
 
   const handleSelectStop = async (stopId: string, direction?: 'outbound' | 'inbound') => {
+    if (!direction && selectedStop === stopId) {
+      setSelectedStop(null);
+      setEta([]);
+      return;
+    }
+
     const targetTab = direction ?? activeTab;
     if (direction && direction !== activeTab) {
       setActiveTab(direction);
@@ -227,10 +231,6 @@ export default function Index() {
     setSelectedStop(stopId);
     setEta([]);
     setEtaLoading(true);
-
-    const currentStops = targetTab === 'outbound' ? outboundStops : inboundStops;
-    const stopInfo = currentStops.find((s) => s.stop === stopId);
-    setSelectedStopName(stopInfo?.name_tc || '');
 
     try {
       const currentRouteInfo = routeInfo.find((r) =>
@@ -455,6 +455,8 @@ export default function Index() {
                   <StopList
                     stops={outboundStops}
                     selectedStop={selectedStop}
+                    eta={eta}
+                    etaLoading={etaLoading}
                     onSelectStop={handleSelectStop}
                   />
                 </TabsContent>
@@ -463,20 +465,12 @@ export default function Index() {
                   <StopList
                     stops={inboundStops}
                     selectedStop={selectedStop}
+                    eta={eta}
+                    etaLoading={etaLoading}
                     onSelectStop={handleSelectStop}
                   />
                 </TabsContent>
               </Tabs>
-
-              {selectedStop && (
-                <div className="mt-4">
-                  <ETADisplay
-                    eta={eta}
-                    stopName={selectedStopName}
-                    isLoading={etaLoading}
-                  />
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
