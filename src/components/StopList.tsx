@@ -1,5 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { MapPin } from 'lucide-react';
+import { MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { ETADisplay } from './ETADisplay';
+import type { ETA } from '@/services/kmbApi';
 
 interface StopWithInfo {
   stop: string;
@@ -12,10 +14,12 @@ interface StopWithInfo {
 interface StopListProps {
   stops: StopWithInfo[];
   selectedStop: string | null;
+  eta: ETA[];
+  etaLoading: boolean;
   onSelectStop: (stopId: string) => void;
 }
 
-export function StopList({ stops, selectedStop, onSelectStop }: StopListProps) {
+export function StopList({ stops, selectedStop, eta, etaLoading, onSelectStop }: StopListProps) {
   if (stops.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8">
@@ -36,12 +40,42 @@ export function StopList({ stops, selectedStop, onSelectStop }: StopListProps) {
           }`}
           onClick={() => onSelectStop(stop.stop)}
         >
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
-              {stop.seq}
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                  {stop.seq}
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium">{stop.name_tc}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                {selectedStop === stop.stop ? (
+                  <>
+                    收起
+                    <ChevronUp className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    展開
+                    <ChevronDown className="w-4 h-4" />
+                  </>
+                )}
+              </div>
             </div>
-            <MapPin className="w-4 h-4 text-muted-foreground" />
-            <span className="font-medium">{stop.name_tc}</span>
+
+            {selectedStop === stop.stop && (
+              <div className="pt-3 border-t">
+                <ETADisplay
+                  eta={eta}
+                  stopName={stop.name_tc}
+                  isLoading={etaLoading}
+                  variant="embedded"
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       ))}
