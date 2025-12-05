@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bus, ArrowRight, ArrowLeft, MapPin, ExternalLink } from 'lucide-react';
+import {
+  Bus,
+  ArrowRight,
+  ArrowLeft,
+  MapPin,
+  ExternalLink,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
 import { BusSearch } from '@/components/BusSearch';
 import { StopList } from '@/components/StopList';
 import { ETADisplay } from '@/components/ETADisplay';
@@ -47,6 +55,7 @@ export default function Index() {
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
   const [nearbyStatus, setNearbyStatus] = useState<'idle' | 'locating' | 'loading' | 'error' | 'denied'>('idle');
   const [locationError, setLocationError] = useState('');
+  const [isNearbyExpanded, setIsNearbyExpanded] = useState(true);
   const { toast } = useToast();
 
   const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -252,74 +261,96 @@ export default function Index() {
         </Card>
 
         <Card className="mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-primary" />
-              附近巴士路線
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              已自動偵測你的位置並顯示最近的巴士站及路線。
-            </p>
+          <CardHeader className="pb-3 flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary" />
+                附近巴士路線
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                已自動偵測你的位置並顯示最近的巴士站及路線。
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1"
+              onClick={() => setIsNearbyExpanded((prev) => !prev)}
+            >
+              {isNearbyExpanded ? (
+                <>
+                  <ChevronUp className="w-4 h-4" />
+                  收起
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4" />
+                  展開
+                </>
+              )}
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {nearbyStatus === 'locating' && (
-              <div className="text-muted-foreground">正在取得位置...</div>
-            )}
-            {nearbyStatus === 'loading' && (
-              <div className="text-muted-foreground">正在載入附近路線...</div>
-            )}
-            {(nearbyStatus === 'error' || nearbyStatus === 'denied') && (
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-sm text-muted-foreground">{locationError}</div>
-                <Button variant="secondary" size="sm" onClick={requestLocation}>
-                  重新嘗試
-                </Button>
-              </div>
-            )}
-            {nearbyStatus === 'idle' && nearbyStops.length === 0 && (
-              <div className="text-muted-foreground">暫時找不到附近的巴士站。</div>
-            )}
-            {nearbyStatus === 'idle' && nearbyStops.length > 0 && (
-              <div className="space-y-3">
-                {nearbyStops.map((stop) => (
-                  <Card key={stop.stopId} className="border-muted">
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="font-semibold">{stop.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDistance(stop.distance)}
+          {isNearbyExpanded && (
+            <CardContent className="space-y-3">
+              {nearbyStatus === 'locating' && (
+                <div className="text-muted-foreground">正在取得位置...</div>
+              )}
+              {nearbyStatus === 'loading' && (
+                <div className="text-muted-foreground">正在載入附近路線...</div>
+              )}
+              {(nearbyStatus === 'error' || nearbyStatus === 'denied') && (
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-sm text-muted-foreground">{locationError}</div>
+                  <Button variant="secondary" size="sm" onClick={requestLocation}>
+                    重新嘗試
+                  </Button>
+                </div>
+              )}
+              {nearbyStatus === 'idle' && nearbyStops.length === 0 && (
+                <div className="text-muted-foreground">暫時找不到附近的巴士站。</div>
+              )}
+              {nearbyStatus === 'idle' && nearbyStops.length > 0 && (
+                <div className="space-y-3">
+                  {nearbyStops.map((stop) => (
+                    <Card key={stop.stopId} className="border-muted">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="font-semibold">{stop.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatDistance(stop.distance)}
+                          </div>
                         </div>
-                      </div>
-                      <a
-                        href={`https://www.google.com/maps?q=${stop.latitude},${stop.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        在 Google 地圖查看
-                      </a>
-                      <div className="flex flex-wrap gap-2">
-                        {stop.routes.map((route) => (
-                          <Button
-                            key={`${stop.stopId}-${route}`}
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleSearch(route)}
-                          >
-                            {route}
-                          </Button>
-                        ))}
-                        {stop.routes.length === 0 && (
-                          <span className="text-sm text-muted-foreground">暫無路線資料</span>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
+                        <a
+                          href={`https://www.google.com/maps?q=${stop.latitude},${stop.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          在 Google 地圖查看
+                        </a>
+                        <div className="flex flex-wrap gap-2">
+                          {stop.routes.map((route) => (
+                            <Button
+                              key={`${stop.stopId}-${route}`}
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleSearch(route)}
+                            >
+                              {route}
+                            </Button>
+                          ))}
+                          {stop.routes.length === 0 && (
+                            <span className="text-sm text-muted-foreground">暫無路線資料</span>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          )}
         </Card>
 
         {isLoading && (
