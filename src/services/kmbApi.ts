@@ -41,6 +41,12 @@ export interface RouteInfo {
   dest_en: string;
 }
 
+export async function getAllStops(): Promise<Stop[]> {
+  const response = await fetch(`${BASE_URL}/stop`);
+  const data = await response.json();
+  return data.data || [];
+}
+
 // Fetch all routes and filter by route number
 export async function getRouteInfo(route: string): Promise<RouteInfo[]> {
   const response = await fetch(`${BASE_URL}/route/`);
@@ -64,6 +70,12 @@ export async function getStopInfo(stopId: string): Promise<Stop | null> {
 
 export async function getStopETA(stopId: string, route: string, serviceType: string): Promise<ETA[]> {
   const response = await fetch(`${BASE_URL}/eta/${stopId}/${route}/${serviceType}`);
+  const data = await response.json();
+  return data.data || [];
+}
+
+export async function getStopETAForStop(stopId: string): Promise<ETA[]> {
+  const response = await fetch(`${BASE_URL}/stop-eta/${stopId}`);
   const data = await response.json();
   return data.data || [];
 }
