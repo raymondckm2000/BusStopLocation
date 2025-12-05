@@ -5,6 +5,8 @@ interface StopWithInfo {
   stop: string;
   name_tc: string;
   seq: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface StopListProps {

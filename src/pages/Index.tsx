@@ -30,6 +30,8 @@ interface StopWithInfo {
   stop: string;
   name_tc: string;
   seq: string;
+  latitude: number;
+  longitude: number;
 }
 
 interface NearbyStop {
@@ -56,7 +58,14 @@ export default function Index() {
   const [nearbyStatus, setNearbyStatus] = useState<'idle' | 'locating' | 'loading' | 'error' | 'denied'>('idle');
   const [locationError, setLocationError] = useState('');
   const [isNearbyExpanded, setIsNearbyExpanded] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const { toast } = useToast();
+
+  const handleTabChange = (value: 'outbound' | 'inbound') => {
+    setSelectedStop(null);
+    setEta([]);
+    setActiveTab(value);
+  };
 
   const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const toRad = (value: number) => (value * Math.PI) / 180;
@@ -117,6 +126,7 @@ export default function Index() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        setUserLocation({ latitude, longitude });
         fetchNearbyStops(latitude, longitude);
       },
       (error) => {
@@ -157,36 +167,46 @@ export default function Index() {
 
       // Get outbound stops
       const outboundRoute = routes.find((r) => r.bound === 'O');
+      let outboundStopsData: StopWithInfo[] = [];
       if (outboundRoute) {
         const stops = await getRouteStops(route, 'outbound', outboundRoute.service_type);
-        const stopsWithInfo = await Promise.all(
+        outboundStopsData = await Promise.all(
           stops.map(async (s) => {
             const info = await getStopInfo(s.stop);
             return {
               stop: s.stop,
               name_tc: info?.name_tc || '未知車站',
               seq: s.seq,
+              latitude: Number(info?.lat ?? 0),
+              longitude: Number(info?.long ?? 0),
             };
           })
         );
-        setOutboundStops(stopsWithInfo);
+        setOutboundStops(outboundStopsData);
       }
 
       // Get inbound stops
       const inboundRoute = routes.find((r) => r.bound === 'I');
+      let inboundStopsData: StopWithInfo[] = [];
       if (inboundRoute) {
         const stops = await getRouteStops(route, 'inbound', inboundRoute.service_type);
-        const stopsWithInfo = await Promise.all(
+        inboundStopsData = await Promise.all(
           stops.map(async (s) => {
             const info = await getStopInfo(s.stop);
             return {
               stop: s.stop,
               name_tc: info?.name_tc || '未知車站',
               seq: s.seq,
+              latitude: Number(info?.lat ?? 0),
+              longitude: Number(info?.long ?? 0),
             };
           })
         );
-        setInboundStops(stopsWithInfo);
+        setInboundStops(inboundStopsData);
+      }
+
+      if (userLocation) {
+        autoSelectNearestStop(outboundStopsData, inboundStopsData);
       }
     } catch (error) {
       toast({
@@ -199,17 +219,22 @@ export default function Index() {
     }
   };
 
-  const handleSelectStop = async (stopId: string) => {
+  const handleSelectStop = async (stopId: string, direction?: 'outbound' | 'inbound') => {
+    const targetTab = direction ?? activeTab;
+    if (direction && direction !== activeTab) {
+      setActiveTab(direction);
+    }
     setSelectedStop(stopId);
+    setEta([]);
     setEtaLoading(true);
 
-    const currentStops = activeTab === 'outbound' ? outboundStops : inboundStops;
+    const currentStops = targetTab === 'outbound' ? outboundStops : inboundStops;
     const stopInfo = currentStops.find((s) => s.stop === stopId);
     setSelectedStopName(stopInfo?.name_tc || '');
 
     try {
       const currentRouteInfo = routeInfo.find((r) =>
-        activeTab === 'outbound' ? r.bound === 'O' : r.bound === 'I'
+        targetTab === 'outbound' ? r.bound === 'O' : r.bound === 'I'
       );
       if (currentRouteInfo) {
         const etaData = await getStopETA(stopId, currentRoute, currentRouteInfo.service_type);
@@ -227,15 +252,55 @@ export default function Index() {
   };
 
   // Clear ETA when switching tabs
-  useEffect(() => {
-    setSelectedStop(null);
-    setEta([]);
-  }, [activeTab]);
+  const autoSelectNearestStop = (
+    outboundStopsData: StopWithInfo[],
+    inboundStopsData: StopWithInfo[]
+  ) => {
+    if (!userLocation) return;
+
+    let nearestStop: { stopId: string; direction: 'outbound' | 'inbound' } | null = null;
+    let shortestDistance = Number.POSITIVE_INFINITY;
+
+    const evaluateStops = (stops: StopWithInfo[], direction: 'outbound' | 'inbound') => {
+      stops.forEach((stop) => {
+        const distance = haversineDistance(
+          userLocation.latitude,
+          userLocation.longitude,
+          stop.latitude,
+          stop.longitude
+        );
+        if (distance < shortestDistance) {
+          shortestDistance = distance;
+          nearestStop = { stopId: stop.stop, direction };
+        }
+      });
+    };
+
+    evaluateStops(outboundStopsData, 'outbound');
+    evaluateStops(inboundStopsData, 'inbound');
+
+    if (nearestStop) {
+      setActiveTab(nearestStop.direction);
+      void handleSelectStop(nearestStop.stopId, nearestStop.direction);
+    }
+  };
 
   useEffect(() => {
     requestLocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (
+      userLocation &&
+      currentRoute &&
+      selectedStop === null &&
+      (outboundStops.length > 0 || inboundStops.length > 0)
+    ) {
+      autoSelectNearestStop(outboundStops, inboundStops);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLocation, outboundStops, inboundStops, currentRoute, selectedStop]);
 
   const formatDistance = (distance: number) => {
     if (distance < 1000) return `${Math.round(distance)} 公尺`;
@@ -365,7 +430,7 @@ export default function Index() {
               <CardTitle className="text-xl">路線 {currentRoute}</CardTitle>
             </CardHeader>
             <CardContent>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList className="grid w-full grid-cols-2 mb-4">
                   <TabsTrigger value="outbound" className="flex items-center gap-2">
                     <ArrowRight className="w-4 h-4" />
