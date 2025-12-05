@@ -16,10 +16,18 @@ interface StopListProps {
   selectedStop: string | null;
   eta: ETA[];
   etaLoading: boolean;
-  onSelectStop: (stopId: string) => void;
+  direction: 'outbound' | 'inbound';
+  onSelectStop: (stopId: string, direction: 'outbound' | 'inbound') => void;
 }
 
-export function StopList({ stops, selectedStop, eta, etaLoading, onSelectStop }: StopListProps) {
+export function StopList({
+  stops,
+  selectedStop,
+  eta,
+  etaLoading,
+  direction,
+  onSelectStop,
+}: StopListProps) {
   if (stops.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8">
@@ -38,7 +46,7 @@ export function StopList({ stops, selectedStop, eta, etaLoading, onSelectStop }:
               ? 'ring-2 ring-primary bg-primary/5'
               : 'hover:bg-accent/50'
           }`}
-          onClick={() => onSelectStop(stop.stop)}
+          onClick={() => onSelectStop(stop.stop, direction)}
         >
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">

@@ -465,6 +465,7 @@ export default function Index() {
                     selectedStop={selectedStop}
                     eta={eta}
                     etaLoading={etaLoading}
+                    direction="outbound"
                     onSelectStop={handleSelectStop}
                   />
                 </TabsContent>
@@ -475,6 +476,7 @@ export default function Index() {
                     selectedStop={selectedStop}
                     eta={eta}
                     etaLoading={etaLoading}
+                    direction="inbound"
                     onSelectStop={handleSelectStop}
                   />
                 </TabsContent>
