@@ -145,6 +145,7 @@ export default function Index() {
     setRouteInfo([]);
     setOutboundStops([]);
     setInboundStops([]);
+    setActiveTab('outbound');
     setSelectedStop(null);
     setEta([]);
 
