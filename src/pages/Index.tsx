@@ -51,7 +51,7 @@ export default function Index() {
   const [selectedStop, setSelectedStop] = useState<string | null>(null);
   const [eta, setEta] = useState<ETA[]>([]);
   const [etaLoading, setEtaLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('outbound');
+  const [activeTab, setActiveTab] = useState<string>('outbound'); // Changed to string to match Tabs
   const [hasAutoSelected, setHasAutoSelected] = useState(false);
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
   const [nearbyStatus, setNearbyStatus] = useState<'idle' | 'locating' | 'loading' | 'error' | 'denied'>('idle');
@@ -60,7 +60,8 @@ export default function Index() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const { toast } = useToast();
 
-  const handleTabChange = (value: 'outbound' | 'inbound') => {
+  // FIX 1: onValueChange returns a string, so we accept string and cast if needed
+  const handleTabChange = (value: string) => {
     setSelectedStop(null);
     setEta([]);
     setActiveTab(value);
@@ -85,6 +86,12 @@ export default function Index() {
     setNearbyStatus('loading');
     try {
       const stops = await getAllStops();
+      
+      // Safety check in case API fails
+      if (!stops || !Array.isArray(stops)) {
+         throw new Error("Failed to fetch stops");
+      }
+
       const stopsWithDistance = stops.map((stop) => ({
         stopId: stop.stop,
         name: stop.name_tc,
@@ -97,25 +104,31 @@ export default function Index() {
 
       const stopsWithRoutes: NearbyStop[] = await Promise.all(
         closestStops.map(async (stop) => {
-          const etaData = await getStopETAForStop(stop.stopId);
-          const uniqueRoutes = Array.from(new Set(etaData.map((etaItem) => etaItem.route)));
-          return {
-            ...stop,
-            routes: uniqueRoutes,
-          };
+          try {
+            const etaData = await getStopETAForStop(stop.stopId);
+            const uniqueRoutes = Array.from(new Set(etaData.map((etaItem) => etaItem.route)));
+            return {
+              ...stop,
+              routes: uniqueRoutes,
+            };
+          } catch (e) {
+            // If fetching ETA for a specific stop fails, return empty routes
+            return { ...stop, routes: [] };
+          }
         })
       );
 
       setNearbyStops(stopsWithRoutes);
       setNearbyStatus('idle');
     } catch (error) {
+      console.error(error);
       setNearbyStatus('error');
       setLocationError('無法載入附近路線，請稍後再試。');
     }
   };
 
   const requestLocation = () => {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       setNearbyStatus('error');
       setLocationError('你的瀏覽器不支援定位功能。');
       return;
@@ -153,7 +166,7 @@ export default function Index() {
 
     try {
       const routes = await getRouteInfo(route);
-      if (routes.length === 0) {
+      if (!routes || routes.length === 0) {
         toast({
           title: '找不到路線',
           description: `未能找到路線 ${route}，請檢查輸入是否正確。`,
@@ -169,6 +182,7 @@ export default function Index() {
       // Get outbound stops
       const outboundRoute = routes.find((r) => r.bound === 'O');
       let outboundStopsData: StopWithInfo[] = [];
+      
       if (outboundRoute) {
         const stops = await getRouteStops(route, 'outbound', outboundRoute.service_type);
         outboundStopsData = await Promise.all(
@@ -189,6 +203,7 @@ export default function Index() {
       // Get inbound stops
       const inboundRoute = routes.find((r) => r.bound === 'I');
       let inboundStopsData: StopWithInfo[] = [];
+      
       if (inboundRoute) {
         const stops = await getRouteStops(route, 'inbound', inboundRoute.service_type);
         inboundStopsData = await Promise.all(
@@ -210,6 +225,7 @@ export default function Index() {
         autoSelectNearestStop(outboundStopsData, inboundStopsData);
       }
     } catch (error) {
+      console.error(error);
       toast({
         title: '錯誤',
         description: '無法獲取路線資料，請稍後再試。',
@@ -220,7 +236,7 @@ export default function Index() {
     }
   };
 
-  const handleSelectStop = async (stopId: string, direction?: 'outbound' | 'inbound') => {
+  const handleSelectStop = async (stopId: string, direction?: string) => {
     if (!direction && selectedStop === stopId) {
       setSelectedStop(null);
       setEta([]);
@@ -228,22 +244,28 @@ export default function Index() {
     }
 
     const targetTab = direction ?? activeTab;
+    
     if (direction && direction !== activeTab) {
       setActiveTab(direction);
     }
+    
     setSelectedStop(stopId);
     setEta([]);
     setEtaLoading(true);
 
     try {
+      // FIX 2: Check activeTab strictly against bounds
+      const isOutbound = targetTab === 'outbound';
       const currentRouteInfo = routeInfo.find((r) =>
-        targetTab === 'outbound' ? r.bound === 'O' : r.bound === 'I'
+        isOutbound ? r.bound === 'O' : r.bound === 'I'
       );
+      
       if (currentRouteInfo) {
         const etaData = await getStopETA(stopId, currentRoute, currentRouteInfo.service_type);
         setEta(etaData);
       }
     } catch (error) {
+      console.error(error);
       toast({
         title: '錯誤',
         description: '無法獲取到站時間，請稍後再試。',
@@ -254,7 +276,6 @@ export default function Index() {
     }
   };
 
-  // Clear ETA when switching tabs
   const autoSelectNearestStop = (
     outboundStopsData: StopWithInfo[],
     inboundStopsData: StopWithInfo[]
@@ -262,10 +283,12 @@ export default function Index() {
     if (!userLocation) return;
 
     const hasOutboundStops = outboundStopsData.length > 0;
+    // If no outbound stops, we must fallback to inbound, otherwise checks fail
     const preferredStops = hasOutboundStops ? outboundStopsData : inboundStopsData;
-    const preferredDirection: 'outbound' | 'inbound' = hasOutboundStops ? 'outbound' : 'inbound';
-
+    
     if (preferredStops.length === 0) return;
+
+    const preferredDirection = hasOutboundStops ? 'outbound' : 'inbound';
 
     let nearestStopId = preferredStops[0].stop;
     let shortestDistance = haversineDistance(
@@ -449,6 +472,7 @@ export default function Index() {
               <CardTitle className="text-xl">路線 {currentRoute}</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* FIX 3: Ensure onValueChange matches the type defined in state */}
               <Tabs value={activeTab} onValueChange={handleTabChange}>
                 <TabsList className="grid w-full grid-cols-2 mb-4">
                   <TabsTrigger value="outbound" className="flex items-center gap-2">
@@ -461,14 +485,15 @@ export default function Index() {
                   </TabsTrigger>
                 </TabsList>
 
-                {outboundRoute && (
-                  <div className="text-sm text-muted-foreground mb-3">
-                    {activeTab === 'outbound' 
+                {/* FIX 4: Safety check for circular routes where inbound might not exist */}
+                <div className="text-sm text-muted-foreground mb-3">
+                    {activeTab === 'outbound' && outboundRoute
                       ? `${outboundRoute.orig_tc} → ${outboundRoute.dest_tc}`
-                      : inboundRoute && `${inboundRoute.orig_tc} → ${inboundRoute.dest_tc}`
+                      : (activeTab === 'inbound' && inboundRoute) 
+                        ? `${inboundRoute.orig_tc} → ${inboundRoute.dest_tc}`
+                        : ''
                     }
-                  </div>
-                )}
+                </div>
 
                 <TabsContent value="outbound" className="space-y-4 mt-0">
                   <StopList
@@ -477,7 +502,7 @@ export default function Index() {
                     eta={eta}
                     etaLoading={etaLoading}
                     direction="outbound"
-                    onSelectStop={handleSelectStop}
+                    onSelectStop={(id) => handleSelectStop(id, 'outbound')}
                   />
                 </TabsContent>
 
@@ -488,7 +513,7 @@ export default function Index() {
                     eta={eta}
                     etaLoading={etaLoading}
                     direction="inbound"
-                    onSelectStop={handleSelectStop}
+                    onSelectStop={(id) => handleSelectStop(id, 'inbound')}
                   />
                 </TabsContent>
               </Tabs>
