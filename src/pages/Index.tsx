@@ -55,7 +55,7 @@ export default function Index() {
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
   const [nearbyStatus, setNearbyStatus] = useState<'idle' | 'locating' | 'loading' | 'error' | 'denied'>('idle');
   const [locationError, setLocationError] = useState('');
-  const [isNearbyExpanded, setIsNearbyExpanded] = useState(true);
+  const [isNearbyExpanded, setIsNearbyExpanded] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const { toast } = useToast();
 
