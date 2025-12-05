@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bus, ArrowRight, ArrowLeft, MapPin } from 'lucide-react';
+import { Bus, ArrowRight, ArrowLeft, MapPin, ExternalLink } from 'lucide-react';
 import { BusSearch } from '@/components/BusSearch';
 import { StopList } from '@/components/StopList';
 import { ETADisplay } from '@/components/ETADisplay';
@@ -29,6 +29,8 @@ interface NearbyStop {
   name: string;
   distance: number;
   routes: string[];
+  latitude: number;
+  longitude: number;
 }
 
 export default function Index() {
@@ -70,6 +72,8 @@ export default function Index() {
         stopId: stop.stop,
         name: stop.name_tc,
         distance: haversineDistance(latitude, longitude, Number(stop.lat), Number(stop.long)) * 1000,
+        latitude: Number(stop.lat),
+        longitude: Number(stop.long),
       }));
 
       const closestStops = stopsWithDistance.sort((a, b) => a.distance - b.distance).slice(0, 5);
@@ -286,6 +290,15 @@ export default function Index() {
                           {formatDistance(stop.distance)}
                         </div>
                       </div>
+                      <a
+                        href={`https://www.google.com/maps?q=${stop.latitude},${stop.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        在 Google 地圖查看
+                      </a>
                       <div className="flex flex-wrap gap-2">
                         {stop.routes.map((route) => (
                           <Button
