@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, MapPinned, ChevronDown, ChevronUp } from 'lucide-react';
 import { ETADisplay } from './ETADisplay';
 import type { ETA } from '@/services/kmbApi';
 
@@ -49,6 +49,23 @@ export function StopList({ stops, selectedStop, eta, etaLoading, onSelectStop }:
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium">{stop.name_tc}</span>
+                  {stop.latitude && stop.longitude && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(
+                          `https://www.google.com/maps?q=${stop.latitude},${stop.longitude}`,
+                          '_blank',
+                          'noopener,noreferrer'
+                        );
+                      }}
+                      className="flex items-center justify-center w-8 h-8 rounded-full text-primary hover:bg-primary/10 transition-colors"
+                      aria-label="在 Google 地圖開啟此巴士站"
+                    >
+                      <MapPinned className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
