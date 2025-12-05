@@ -52,6 +52,7 @@ export default function Index() {
   const [eta, setEta] = useState<ETA[]>([]);
   const [etaLoading, setEtaLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('outbound');
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
   const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
   const [nearbyStatus, setNearbyStatus] = useState<'idle' | 'locating' | 'loading' | 'error' | 'denied'>('idle');
   const [locationError, setLocationError] = useState('');
@@ -146,6 +147,7 @@ export default function Index() {
     setOutboundStops([]);
     setInboundStops([]);
     setActiveTab('outbound');
+    setHasAutoSelected(false);
     setSelectedStop(null);
     setEta([]);
 
@@ -291,6 +293,7 @@ export default function Index() {
     }
 
     void handleSelectStop(nearestStopId, preferredDirection);
+    setHasAutoSelected(true);
   };
 
   useEffect(() => {
@@ -303,12 +306,20 @@ export default function Index() {
       userLocation &&
       currentRoute &&
       selectedStop === null &&
+      !hasAutoSelected &&
       (outboundStops.length > 0 || inboundStops.length > 0)
     ) {
       autoSelectNearestStop(outboundStops, inboundStops);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userLocation, outboundStops, inboundStops, currentRoute, selectedStop]);
+  }, [
+    userLocation,
+    outboundStops,
+    inboundStops,
+    currentRoute,
+    selectedStop,
+    hasAutoSelected,
+  ]);
 
   const formatDistance = (distance: number) => {
     if (distance < 1000) return `${Math.round(distance)} 公尺`;
