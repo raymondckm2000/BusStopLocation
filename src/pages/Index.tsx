@@ -1,24 +1,34 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bus, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Bus, ArrowRight, ArrowLeft, MapPin } from 'lucide-react';
 import { BusSearch } from '@/components/BusSearch';
 import { StopList } from '@/components/StopList';
 import { ETADisplay } from '@/components/ETADisplay';
 import { useToast } from '@/hooks/use-toast';
 import {
+  getAllStops,
   getRouteInfo,
   getRouteStops,
   getStopInfo,
   getStopETA,
+  getStopETAForStop,
   type RouteInfo,
   type ETA,
 } from '@/services/kmbApi';
+import { Button } from '@/components/ui/button';
 
 interface StopWithInfo {
   stop: string;
   name_tc: string;
   seq: string;
+}
+
+interface NearbyStop {
+  stopId: string;
+  name: string;
+  distance: number;
+  routes: string[];
 }
 
 export default function Index() {
@@ -32,7 +42,82 @@ export default function Index() {
   const [eta, setEta] = useState<ETA[]>([]);
   const [etaLoading, setEtaLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('outbound');
+  const [nearbyStops, setNearbyStops] = useState<NearbyStop[]>([]);
+  const [nearbyStatus, setNearbyStatus] = useState<'idle' | 'locating' | 'loading' | 'error' | 'denied'>('idle');
+  const [locationError, setLocationError] = useState('');
   const { toast } = useToast();
+
+  const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const R = 6371; // km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const fetchNearbyStops = async (latitude: number, longitude: number) => {
+    setNearbyStatus('loading');
+    try {
+      const stops = await getAllStops();
+      const stopsWithDistance = stops.map((stop) => ({
+        stopId: stop.stop,
+        name: stop.name_tc,
+        distance: haversineDistance(latitude, longitude, Number(stop.lat), Number(stop.long)) * 1000,
+      }));
+
+      const closestStops = stopsWithDistance.sort((a, b) => a.distance - b.distance).slice(0, 5);
+
+      const stopsWithRoutes: NearbyStop[] = await Promise.all(
+        closestStops.map(async (stop) => {
+          const etaData = await getStopETAForStop(stop.stopId);
+          const uniqueRoutes = Array.from(new Set(etaData.map((etaItem) => etaItem.route)));
+          return {
+            ...stop,
+            routes: uniqueRoutes,
+          };
+        })
+      );
+
+      setNearbyStops(stopsWithRoutes);
+      setNearbyStatus('idle');
+    } catch (error) {
+      setNearbyStatus('error');
+      setLocationError('無法載入附近路線，請稍後再試。');
+    }
+  };
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setNearbyStatus('error');
+      setLocationError('你的瀏覽器不支援定位功能。');
+      return;
+    }
+
+    setNearbyStatus('locating');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        fetchNearbyStops(latitude, longitude);
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setNearbyStatus('denied');
+          setLocationError('需要定位權限才能顯示附近路線。');
+        } else {
+          setNearbyStatus('error');
+          setLocationError('無法取得你的位置，請稍後再試。');
+        }
+      },
+      { enableHighAccuracy: true }
+    );
+  };
 
   const handleSearch = async (route: string) => {
     setIsLoading(true);
@@ -134,6 +219,16 @@ export default function Index() {
     setEta([]);
   }, [activeTab]);
 
+  useEffect(() => {
+    requestLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const formatDistance = (distance: number) => {
+    if (distance < 1000) return `${Math.round(distance)} 公尺`;
+    return `${(distance / 1000).toFixed(1)} 公里`;
+  };
+
   const outboundRoute = routeInfo.find((r) => r.bound === 'O');
   const inboundRoute = routeInfo.find((r) => r.bound === 'I');
 
@@ -149,6 +244,68 @@ export default function Index() {
           </CardHeader>
           <CardContent>
             <BusSearch onSearch={handleSearch} isLoading={isLoading} />
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-primary" />
+              附近巴士路線
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              已自動偵測你的位置並顯示最近的巴士站及路線。
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {nearbyStatus === 'locating' && (
+              <div className="text-muted-foreground">正在取得位置...</div>
+            )}
+            {nearbyStatus === 'loading' && (
+              <div className="text-muted-foreground">正在載入附近路線...</div>
+            )}
+            {(nearbyStatus === 'error' || nearbyStatus === 'denied') && (
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm text-muted-foreground">{locationError}</div>
+                <Button variant="secondary" size="sm" onClick={requestLocation}>
+                  重新嘗試
+                </Button>
+              </div>
+            )}
+            {nearbyStatus === 'idle' && nearbyStops.length === 0 && (
+              <div className="text-muted-foreground">暫時找不到附近的巴士站。</div>
+            )}
+            {nearbyStatus === 'idle' && nearbyStops.length > 0 && (
+              <div className="space-y-3">
+                {nearbyStops.map((stop) => (
+                  <Card key={stop.stopId} className="border-muted">
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold">{stop.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDistance(stop.distance)}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {stop.routes.map((route) => (
+                          <Button
+                            key={`${stop.stopId}-${route}`}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleSearch(route)}
+                          >
+                            {route}
+                          </Button>
+                        ))}
+                        {stop.routes.length === 0 && (
+                          <span className="text-sm text-muted-foreground">暫無路線資料</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
