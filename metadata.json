@@ -1,0 +1,7 @@
+{
+  "name": "TransitScout AI",
+  "description": "Intelligent bus stop finder powered by Gemini with Google Maps grounding. Locate nearby transit options instantly.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
