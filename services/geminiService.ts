@@ -1,14 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { GeminiResponse, LocationCoords } from "../types";
 
-const apiKey = process.env.API_KEY;
-
-if (!apiKey) {
-  console.error("API_KEY is not defined in the environment.");
-}
-
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
-
 /**
  * Fetches bus stops based on a text query and optional user location.
  * Uses Gemini with the Google Maps tool.
@@ -18,6 +10,12 @@ export const findBusStops = async (
   userLocation?: LocationCoords
 ): Promise<GeminiResponse> => {
   try {
+    // Safely retrieve API key, handling environments where process might not be defined
+    const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
+    
+    // Initialize AI client inside the function
+    const ai = new GoogleGenAI({ apiKey: apiKey });
+    
     const modelId = "gemini-2.5-flash"; // Flash is fast and good for grounding
     
     // Construct a context-aware prompt
